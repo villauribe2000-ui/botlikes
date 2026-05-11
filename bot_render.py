@@ -356,6 +356,176 @@ def like(message):
     except Exception as e:
         bot.reply_to(message, f"❌ Error de conexión: {str(e)}")
 
+# ── PANEL ADMIN ──────────────────────────────────────────────────────────────
+@bot.message_handler(commands=["admin"])
+def panel_admin(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    config = cargar_config()
+    grupos = cargar_grupos()
+    texto = (
+        "🛠 *Panel de Administración*\n\n"
+        f"📋 Grupos autorizados: {len(grupos)}\n"
+        f"⚠️ Límite global: {config.get('limite_global', 1)} uso(s)/día\n\n"
+        "*Grupos:*\n"
+        "/addgrupo <ID> — Agregar grupo\n"
+        "/delgrupo <ID> — Eliminar grupo\n"
+        "/listagrupos — Ver grupos\n\n"
+        "*Límites:*\n"
+        "/limitetodos — Límite global para todos\n"
+        "/limitegrupo — Límite por grupo específico\n"
+        "/limitepersona <ID> — Límite individual\n"
+        "/verlimites — Ver todos los límites\n"
+        "/resetusos — Resetear usos de todos\n\n"
+        "*Encender/Apagar:*\n"
+        "/apagar — Apagar bot en un grupo\n"
+        "/encender — Encender bot en un grupo\n"
+        "/apagarTodo — Apagar bot en todos los grupos\n"
+        "/encenderTodo — Encender bot en todos los grupos\n\n"
+        "*Bloqueo de cuentas FF:*\n"
+        "/bloquear <ID> — Bloquear cuenta de FF\n"
+        "/desbloquear <ID> — Desbloquear cuenta de FF\n"
+        "/listabloqueados — Ver cuentas bloqueadas\n\n"
+        "*Usuarios Premium:*\n"
+        "/addpremium <ID> — Agregar usuario premium\n"
+        "/delpremium <ID> — Quitar usuario premium\n"
+        "/listapremium — Ver usuarios premium\n\n"
+        "*Mantenimiento:*\n"
+        "/mantenimiento — Activar modo mantenimiento\n"
+        "/sinmantenimiento — Desactivar mantenimiento\n\n"
+        "*APIs:*\n"
+        "/activarapi1 — Activar API 1 (límite 30)\n"
+        "/activarapi2 — Activar API 2 (límite 200)\n"
+        "/desactivarapi — Desactivar ambas APIs\n"
+        "/verapi — Ver API activa\n\n"
+        "*Utilidades:*\n"
+        "/id — ID del grupo\n"
+        "/id (respondiendo mensaje) — ID del usuario"
+    )
+    bot.reply_to(message, texto, parse_mode="Markdown")
+
+@bot.message_handler(commands=["addgrupo"])
+def add_grupo(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    partes = message.text.split()
+    if len(partes) < 2:
+        bot.reply_to(message, "❌ Uso: /addgrupo <ID>\nEjemplo: /addgrupo -1001234567890")
+        return
+    try:
+        grupo_id = int(partes[1])
+        grupos = cargar_grupos()
+        if grupo_id not in grupos:
+            grupos.append(grupo_id)
+            guardar_grupos(grupos)
+            bot.reply_to(message, f"✅ Grupo {grupo_id} agregado correctamente.")
+        else:
+            bot.reply_to(message, f"⚠️ El grupo {grupo_id} ya está autorizado.")
+    except ValueError:
+        bot.reply_to(message, "❌ ID de grupo inválido.")
+
+@bot.message_handler(commands=["delgrupo"])
+def del_grupo(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    partes = message.text.split()
+    if len(partes) < 2:
+        bot.reply_to(message, "❌ Uso: /delgrupo <ID>\nEjemplo: /delgrupo -1001234567890")
+        return
+    try:
+        grupo_id = int(partes[1])
+        grupos = cargar_grupos()
+        if grupo_id in grupos:
+            grupos.remove(grupo_id)
+            guardar_grupos(grupos)
+            bot.reply_to(message, f"✅ Grupo {grupo_id} eliminado correctamente.")
+        else:
+            bot.reply_to(message, f"⚠️ El grupo {grupo_id} no está en la lista.")
+    except ValueError:
+        bot.reply_to(message, "❌ ID de grupo inválido.")
+
+@bot.message_handler(commands=["listagrupos"])
+def lista_grupos(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    grupos = cargar_grupos()
+    if not grupos:
+        bot.reply_to(message, "📋 No hay grupos autorizados.")
+        return
+    texto = "📋 *Grupos autorizados:*\n\n"
+    for i, grupo in enumerate(grupos, 1):
+        texto += f"{i}. `{grupo}`\n"
+    bot.reply_to(message, texto, parse_mode="Markdown")
+
+@bot.message_handler(commands=["id"])
+def get_id(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    
+    if message.reply_to_message:
+        # ID del usuario al que responde
+        user_id = message.reply_to_message.from_user.id
+        username = message.reply_to_message.from_user.username or "Sin username"
+        first_name = message.reply_to_message.from_user.first_name or "Sin nombre"
+        bot.reply_to(message, 
+            f"👤 *Usuario:* {first_name}\n"
+            f"🆔 *ID:* `{user_id}`\n"
+            f"📝 *Username:* @{username}",
+            parse_mode="Markdown"
+        )
+    else:
+        # ID del grupo/chat actual
+        chat_id = message.chat.id
+        chat_title = getattr(message.chat, 'title', 'Chat privado')
+        bot.reply_to(message,
+            f"💬 *Chat:* {chat_title}\n"
+            f"🆔 *ID:* `{chat_id}`",
+            parse_mode="Markdown"
+        )
+
+@bot.message_handler(commands=["miid"])
+def mi_id(message):
+    """Comando para que cualquier usuario vea su ID"""
+    user_id = message.from_user.id
+    username = message.from_user.username or "Sin username"
+    first_name = message.from_user.first_name or "Sin nombre"
+    
+    bot.reply_to(message,
+        f"👤 *Tu información:*\n\n"
+        f"🆔 *ID:* `{user_id}`\n"
+        f"📝 *Nombre:* {first_name}\n"
+        f"📝 *Username:* @{username}\n\n"
+        f"💡 *Tip:* Copia tu ID para configurarlo como admin",
+        parse_mode="Markdown"
+    )
+
+@bot.message_handler(commands=["testadmin"])
+def test_admin(message):
+    """Comando para verificar si eres admin"""
+    user_id = message.from_user.id
+    admin_id_config = ADMIN_ID
+    
+    if es_admin(user_id):
+        bot.reply_to(message, 
+            f"✅ *Eres ADMIN*\n\n"
+            f"🆔 Tu ID: `{user_id}`\n"
+            f"⚙️ Admin configurado: `{admin_id_config}`",
+            parse_mode="Markdown"
+        )
+    else:
+        bot.reply_to(message,
+            f"❌ *NO eres admin*\n\n"
+            f"🆔 Tu ID: `{user_id}`\n"
+            f"⚙️ Admin configurado: `{admin_id_config}`\n\n"
+            f"💡 Configura tu ID en las variables de entorno de Render",
+            parse_mode="Markdown"
+        )
+
 # ── Webhook Flask ────────────────────────────────────────────────────────────
 @app.route('/webhook', methods=['POST'])
 def webhook():

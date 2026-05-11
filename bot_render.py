@@ -303,13 +303,12 @@ def like(message):
                 likes = info["likes"]
                 likes_enviados = likes.get("enviadas", 0)
                 antes = likes.get("antes", 0)
-                # Calcular los likes después sumando los enviados
-                despues = antes + likes_enviados
+                depois = likes.get("depois", 0)  # ← Correcto - usar valor real de la API
                 nick = limpiar(conta.get("nome_conta", "N/A"))
                 region = conta.get("region", "N/A").upper()
                 
                 # Debug para verificar valores
-                print(f"[DEBUG] Likes - Antes: {antes}, Enviados: {likes_enviados}, Después: {despues}")
+                print(f"[DEBUG] Likes - Antes: {antes}, Enviados: {likes_enviados}, Depois: {depois}")
 
                 if likes_enviados == 0:
                     mensaje = (
@@ -332,7 +331,7 @@ def like(message):
                         f"🌎 Región: {region}\n\n"
                         f"✨ RESULTADO 🔥\n"
                         f"➖ Antes: {antes}\n"
-                        f"➕ Después: {despues}\n"
+                        f"➕ Después: {depois}\n"
                         f"🎉 Enviados: {likes_enviados} me gusta!\n\n"
                     )
                     

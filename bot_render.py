@@ -319,7 +319,22 @@ def like(message):
     bot.reply_to(message, "🔍 Enviando likes...")
 
     try:
-        response = requests.get(API_URL, params={"key": api_key, "id": player_id}, timeout=15)
+        # Headers mejorados para evitar bloqueos
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+            'Connection': 'keep-alive'
+        }
+        
+        response = requests.get(API_URL, 
+                              params={"key": api_key, "id": player_id}, 
+                              headers=headers,
+                              timeout=30)
+        
+        print(f"[DEBUG] Status Code: {response.status_code}")
+        print(f"[DEBUG] Response: {response.text[:200]}...")
+        
         data = response.json()
 
         if response.status_code == 200 and data.get("success"):
@@ -363,15 +378,23 @@ def like(message):
                         f"Creador: @sebas992269"
                     )
         else:
-            mensaje = f"⚠️ Error al enviar likes."
+            # Error más específico
+            error_detail = data.get("message", data.get("error", "Error desconocido"))
+            mensaje = f"❌ Error de API ({response.status_code}): {error_detail}"
 
         markup = InlineKeyboardMarkup([[InlineKeyboardButton("👑 Platform - Principal", url="https://t.me/bunlatrixvip")]])
         bot.reply_to(message, mensaje, reply_markup=markup)
 
     except requests.exceptions.Timeout:
-        bot.reply_to(message, "⏱️ La API tardó demasiado. Intenta de nuevo.")
+        bot.reply_to(message, "⏱️ La API tardó demasiado (30s). Intenta de nuevo.")
+    except requests.exceptions.ConnectionError:
+        bot.reply_to(message, "🌐 Error de conexión con la API de likes.")
+    except requests.exceptions.RequestException as e:
+        bot.reply_to(message, f"🔗 Error de red: {str(e)}")
+    except json.JSONDecodeError:
+        bot.reply_to(message, f"📄 Respuesta inválida de la API. Status: {response.status_code}")
     except Exception as e:
-        bot.reply_to(message, f"❌ Error: {str(e)}")
+        bot.reply_to(message, f"❌ Error inesperado: {str(e)}")
 
 @bot.message_handler(commands=["info"])
 def info_comando(message):

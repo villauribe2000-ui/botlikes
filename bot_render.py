@@ -177,6 +177,8 @@ def es_grupo(message):
     return message.chat.type in ["group", "supergroup"]
 
 def buscar_info_jugador(player_id):
+    if not HL_USER_UID or not HL_API_KEY:
+        return None
     regiones = ["us", "br", "sg", "ru", "id", "tw", "vn", "th", "me", "pk", "ind", "bd"]
     for region in regiones:
         try:
@@ -208,7 +210,7 @@ if not TOKEN:
 if ADMIN_ID == 0:
     raise RuntimeError("Falta ADMIN_ID en variables de entorno.")
 if not HL_USER_UID or not HL_API_KEY:
-    raise RuntimeError("Falta HL_USER_UID o HL_API_KEY en variables de entorno.")
+    print("⚠️ Advertencia: HL_USER_UID o HL_API_KEY no configurados. Comandos /info, /gremio, /mascota no funcionarán.")
 
 # ── Teclados ─────────────────────────────────────────────────────────────────
 def teclado_menu_principal():

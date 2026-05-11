@@ -1,0 +1,16 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "python start_railway.py"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+[environments.production.variables]
+# Variables de entorno requeridas (configurar en Railway Dashboard):
+# BOT_TOKEN = "tu_token_del_bot"
+# ADMIN_ID = "tu_id_de_telegram"
+# LIKES_API1_KEY = "tu_api_key_1"
+# LIKES_API2_KEY = "tu_api_key_2"
+# HL_USER_UID = "tu_hl_user_uid"
+# HL_API_KEY = "tu_hl_api_key"

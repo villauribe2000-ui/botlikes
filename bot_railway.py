@@ -3,12 +3,8 @@ import requests
 import json
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
-from flask import Flask, request
-
-# Crear app Flask para webhook
-app = Flask(__name__)
 
 # Configuración
 TOKEN = os.getenv("BOT_TOKEN")
@@ -180,6 +176,32 @@ def es_grupo(message):
         return True
     return message.chat.type in ["group", "supergroup"]
 
+def buscar_info_jugador(player_id):
+    if not HL_USER_UID or not HL_API_KEY:
+        return None
+    regiones = ["us", "br", "sg", "ru", "id", "tw", "vn", "th", "me", "pk", "ind", "bd"]
+    for region in regiones:
+        try:
+            response = requests.get(HL_API_URL, params={
+                "sectionName": "AccountInfo",
+                "PlayerUid": player_id,
+                "region": region,
+                "useruid": HL_USER_UID,
+                "api": HL_API_KEY
+            }, timeout=10)
+            if response.status_code != 200:
+                continue
+            try:
+                data = response.json()
+            except:
+                continue
+            if "error" not in data and data.get("result"):
+                data["result"]["_region"] = region
+                return data["result"]
+        except:
+            continue
+    return None
+
 # Inicializar bot
 bot = telebot.TeleBot(TOKEN)
 
@@ -240,6 +262,7 @@ def start(message):
         "• /honor <ID> <región>\n\n"
         "Ejemplo: `/like 106540507`\n\n"
         f"⚠️ Tu límite: {limite} uso(s) por día\n\n"
+        "🚀 *Desplegado en Railway* - Sin suspensiones\n\n"
         "Creador: @sebas992269",
         parse_mode="Markdown",
         reply_markup=teclado_menu_principal()
@@ -350,7 +373,7 @@ def like(message):
                     if es_admin(message.from_user.id):
                         mensaje += "╚════════════════╝\n"
                     
-                    mensaje += "Creador: @sebas992269"
+                    mensaje += "🚀 Desplegado en Railway\nCreador: @sebas992269"
                     
             except (KeyError, IndexError, TypeError) as e:
                 print(f"[DEBUG] Error parseando respuesta: {e}")
@@ -377,7 +400,8 @@ def panel_admin(message):
     config = cargar_config()
     grupos = cargar_grupos()
     texto = (
-        "🛠 *Panel de Administración*\n\n"
+        "🛠 *Panel de Administración*\n"
+        "🚀 *Desplegado en Railway*\n\n"
         f"📋 Grupos autorizados: {len(grupos)}\n"
         f"⚠️ Límite global: {config.get('limite_global', 1)} uso(s)/día\n\n"
         "*Grupos:*\n"
@@ -413,7 +437,8 @@ def panel_admin(message):
         "/verapi — Ver API activa\n\n"
         "*Utilidades:*\n"
         "/id — ID del grupo\n"
-        "/id (respondiendo mensaje) — ID del usuario"
+        "/miid — Tu información\n"
+        "/testadmin — Verificar admin"
     )
     bot.reply_to(message, texto, parse_mode="Markdown")
 
@@ -575,7 +600,6 @@ def add_premium(message):
         user_id = partes[1]
         dias = int(partes[2]) if len(partes) > 2 else 30
         
-        from datetime import timedelta
         fecha_expira = (datetime.now() + timedelta(days=dias)).strftime("%Y-%m-%d")
         
         config = cargar_config()
@@ -902,7 +926,6 @@ def info_comando(message):
     # Buscar info del jugador usando HL Gaming API
     info = buscar_info_jugador(player_id)
     if info:
-        from datetime import datetime as dt
         nombre = limpiar(info.get("AccountName", "N/A"))
         region = info.get("AccountRegion", info.get("_region", "N/A")).upper()
         ob = info.get("ReleaseVersion", "N/A")
@@ -910,7 +933,7 @@ def info_comando(message):
         exp = info.get("AccountEXP", "N/A")
         create_ts = info.get("AccountCreateTime", 0)
         try:
-            fecha_creacion = dt.fromtimestamp(int(create_ts)).strftime("%d/%m/%Y - %H:%M:%S")
+            fecha_creacion = datetime.fromtimestamp(int(create_ts)).strftime("%d/%m/%Y - %H:%M:%S")
         except:
             fecha_creacion = "N/A"
 
@@ -922,6 +945,7 @@ def info_comando(message):
             f"❤️ *Me Gusta:* {likes}\n"
             f"⭐ *Experiencia:* {exp} EXP\n"
             f"📅 *Creación:* {fecha_creacion}\n\n"
+            f"🚀 Desplegado en Railway\n"
             f"Creador: @sebas992269"
         )
         bot.reply_to(message, mensaje, parse_mode="Markdown")
@@ -1002,7 +1026,8 @@ def test_admin(message):
         bot.reply_to(message, 
             f"✅ *Eres ADMIN*\n\n"
             f"🆔 Tu ID: `{user_id}`\n"
-            f"⚙️ Admin configurado: `{admin_id_config}`",
+            f"⚙️ Admin configurado: `{admin_id_config}`\n\n"
+            f"🚀 Desplegado en Railway",
             parse_mode="Markdown"
         )
     else:
@@ -1010,46 +1035,12 @@ def test_admin(message):
             f"❌ *NO eres admin*\n\n"
             f"🆔 Tu ID: `{user_id}`\n"
             f"⚙️ Admin configurado: `{admin_id_config}`\n\n"
-            f"💡 Configura tu ID en las variables de entorno de Render",
+            f"💡 Configura tu ID en las variables de entorno de Railway",
             parse_mode="Markdown"
         )
 
-# ── Webhook Flask ────────────────────────────────────────────────────────────
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    try:
-        json_str = request.get_data().decode('UTF-8')
-        update = telebot.types.Update.de_json(json_str)
-        bot.process_new_updates([update])
-        return '', 200
-    except Exception as e:
-        print(f"Error en webhook: {e}")
-        return '', 500
-
-@app.route('/health')
-def health():
-    return 'Bot is running!', 200
-
-@app.route('/')
-def index():
-    return 'Free Fire Bot is running on Render!', 200
-
-# ── Configurar webhook ──────────────────────────────────────────────────────
-def setup_webhook():
-    webhook_url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME', 'localhost')}/webhook"
-    try:
-        bot.remove_webhook()
-        time.sleep(1)
-        result = bot.set_webhook(url=webhook_url)
-        print(f"Webhook configurado: {webhook_url} - Resultado: {result}")
-    except Exception as e:
-        print(f"Error configurando webhook: {e}")
-
-if __name__ == '__main__':
-    # Configurar webhook si estamos en Render
-    if os.getenv('RENDER_EXTERNAL_HOSTNAME'):
-        setup_webhook()
-    
-    # Iniciar servidor Flask
-    port = int(os.getenv('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+if __name__ == "__main__":
+    print("🚀 Bot iniciado en Railway - Sin suspensiones!")
+    print(f"🤖 Bot: @{bot.get_me().username}")
+    print("📊 Modo: Polling continuo")
+    bot.infinity_polling()

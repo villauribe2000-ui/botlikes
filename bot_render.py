@@ -316,7 +316,44 @@ def like(message):
         )
         return
 
-    bot.reply_to(message, "🔍 Enviando likes...")
+    bot.reply_to(message, "🔍 Buscando cuenta...")
+
+    # Intentar obtener información del jugador (opcional)
+    info = buscar_info_jugador(player_id)
+    if info:
+        from datetime import datetime as dt
+        nombre = limpiar(info.get("AccountName", "N/A"))
+        region = info.get("AccountRegion", info.get("_region", "N/A")).upper()
+        ob = info.get("ReleaseVersion", "N/A")
+        likes = info.get("AccountLikes", "N/A")
+        exp = info.get("AccountEXP", "N/A")
+        create_ts = info.get("AccountCreateTime", 0)
+        try:
+            fecha_creacion = dt.fromtimestamp(int(create_ts)).strftime("%d/%m/%Y - %H:%M:%S")
+        except:
+            fecha_creacion = "N/A"
+
+        markup = InlineKeyboardMarkup()
+        markup.row(
+            InlineKeyboardButton("🟢 Aceptar", callback_data=f"like_ok_{player_id}_{message.from_user.id}_{message.chat.id}"),
+            InlineKeyboardButton("🔴 Cancelar", callback_data=f"like_no_{player_id}_{message.from_user.id}")
+        )
+        bot.reply_to(message,
+            f"🎁 CUENTA ENCONTRADA!\n\n"
+            f"- JUGADOR: {nombre}\n"
+            f"- REGIÓN: {region} ({ob})\n"
+            f"- ME GUSTA ACTUALES: {likes}\n"
+            f"- EXPERIENCIA: {exp} EXP\n"
+            f"- CREACIÓN: {fecha_creacion}\n\n"
+            f"¿Deseas enviar likes a esta cuenta?",
+            reply_markup=markup
+        )
+        return
+
+    # Si no se encuentra info, enviar likes directamente
+    enviar_likes_directo_message(message, player_id, api_key)
+
+def enviar_likes_directo_message(message, player_id, api_key):
 
     try:
         # Headers mejorados para evitar bloqueos
@@ -324,12 +361,24 @@ def like(message):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             'Accept': 'application/json, text/plain, */*',
             'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
-            'Connection': 'keep-alive'
+            'Connection': 'keep-alive',
+            'Referer': 'https://hubsdev.com/',
+            'Origin': 'https://hubsdev.com'
         }
+        
+        # Usar proxies si están disponibles
+        proxies = None
+        proxy_url = os.getenv('PROXY_URL')
+        if proxy_url:
+            proxies = {
+                'http': proxy_url,
+                'https': proxy_url
+            }
         
         response = requests.get(API_URL, 
                               params={"key": api_key, "id": player_id}, 
                               headers=headers,
+                              proxies=proxies,
                               timeout=30)
         
         print(f"[DEBUG] Status Code: {response.status_code}")
@@ -395,6 +444,126 @@ def like(message):
         bot.reply_to(message, f"📄 Respuesta inválida de la API. Status: {response.status_code}")
     except Exception as e:
         bot.reply_to(message, f"❌ Error inesperado: {str(e)}")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("like_ok_") or call.data.startswith("like_no_"))
+def callback_like_confirm(call):
+    partes = call.data.split("_")
+    accion = partes[1]
+    player_id = partes[2]
+    user_id = int(partes[3])
+
+    if call.from_user.id != user_id:
+        bot.answer_callback_query(call.id, "⛔ Este botón no es para ti.")
+        return
+
+    if accion == "no":
+        bot.edit_message_text("❌ Envío de likes cancelado.", call.message.chat.id, call.message.message_id)
+        bot.answer_callback_query(call.id)
+        return
+
+    chat_id = int(partes[4])
+    api_key = get_api_key()
+    if not api_key:
+        bot.edit_message_text("⛔ El servicio está desactivado temporalmente.", call.message.chat.id, call.message.message_id)
+        bot.answer_callback_query(call.id)
+        return
+
+    bot.edit_message_text(f"⏳ Enviando likes a la cuenta {player_id}...", call.message.chat.id, call.message.message_id)
+    bot.answer_callback_query(call.id)
+
+    # Ejecutar envío de likes
+    enviar_likes_directo_callback(call, player_id, api_key, user_id, chat_id)
+
+def enviar_likes_directo_callback(call, player_id, api_key, user_id, chat_id):
+    try:
+        # Headers mejorados para evitar bloqueos
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+            'Connection': 'keep-alive',
+            'Referer': 'https://hubsdev.com/',
+            'Origin': 'https://hubsdev.com'
+        }
+        
+        # Usar proxies si están disponibles
+        proxies = None
+        proxy_url = os.getenv('PROXY_URL')
+        if proxy_url:
+            proxies = {
+                'http': proxy_url,
+                'https': proxy_url
+            }
+        
+        response = requests.get(API_URL, 
+                              params={"key": api_key, "id": player_id}, 
+                              headers=headers,
+                              proxies=proxies,
+                              timeout=30)
+        
+        print(f"[DEBUG] Status Code: {response.status_code}")
+        print(f"[DEBUG] Response: {response.text[:200]}...")
+        
+        data = response.json()
+
+        if response.status_code == 200 and data.get("success"):
+            registrar_uso(user_id, chat_id)
+            d = data.get("data", {})
+            likes_send = d.get('likes_send', 0)
+
+            if likes_send == 0:
+                mensaje = (
+                    f"⚠️ Esta cuenta ya tiene el máximo de likes hoy.\n\n"
+                    f"👤 Nick: {limpiar(d.get('player_nickname', 'N/A'))}\n"
+                    f"🌎 Región: {d.get('region', 'N/A')}\n\n"
+                    f"Intenta más tarde 🕐\n\n"
+                    f"Creador: @sebas992269"
+                )
+            else:
+                insignia = f"👑 USUARIO PREMIUM — {dias_restantes_premium(user_id)} días restantes\n\n" if es_premium(user_id) else ""
+                if es_admin(user_id):
+                    mensaje = (
+                        f"╔══ 👑 EL CREADOR ESTA USANDO EL SISTEMA ══╗\n\n"
+                        f"🚀 LIKES ENVIADOS ✅\n\n"
+                        f"👤 Nick: {limpiar(d.get('player_nickname', 'N/A'))}\n"
+                        f"🌎 Región: {d.get('region', 'N/A')}\n\n"
+                        f"✨ RESULTADO 🔥\n"
+                        f"➖ Antes: {d.get('likes_before', 0)}\n"
+                        f"➕ Después: {d.get('likes_after', 0)}\n"
+                        f"🎉 Enviados: {likes_send} me gusta!\n\n"
+                        f"╚════════════════╝\n"
+                        f"Creador: @sebas992269"
+                    )
+                else:
+                    mensaje = (
+                        f"{insignia}"
+                        f"🚀 ME GUSTA ENVIADOS CON ÉXITO! ✅\n\n"
+                        f"👤 Nick: {limpiar(d.get('player_nickname', 'N/A'))}\n"
+                        f"🌎 Región: {d.get('region', 'N/A')}\n\n"
+                        f"✨ RESULTADO 🔥\n"
+                        f"➖ Antes: {d.get('likes_before', 0)}\n"
+                        f"➕ Después: {d.get('likes_after', 0)}\n"
+                        f"🎉 Enviados: {likes_send} me gusta!\n\n"
+                        f"Creador: @sebas992269"
+                    )
+        else:
+            # Error más específico
+            error_detail = data.get("message", data.get("error", "Error desconocido"))
+            mensaje = f"❌ Error de API ({response.status_code}): {error_detail}"
+
+        markup = InlineKeyboardMarkup([[InlineKeyboardButton("👑 Platform - Principal", url="https://t.me/bunlatrixvip")]])
+        bot.send_message(call.message.chat.id, mensaje, reply_markup=markup)
+
+    except requests.exceptions.Timeout:
+        bot.send_message(call.message.chat.id, "⏱️ La API tardó demasiado (30s). Intenta de nuevo.")
+    except requests.exceptions.ConnectionError:
+        bot.send_message(call.message.chat.id, "🌐 Error de conexión con la API de likes.")
+    except requests.exceptions.RequestException as e:
+        bot.send_message(call.message.chat.id, f"🔗 Error de red: {str(e)}")
+    except json.JSONDecodeError:
+        bot.send_message(call.message.chat.id, f"📄 Respuesta inválida de la API. Status: {response.status_code}")
+    except Exception as e:
+        bot.send_message(call.message.chat.id, f"❌ Error inesperado: {str(e)}")
 
 @bot.message_handler(commands=["info"])
 def info_comando(message):

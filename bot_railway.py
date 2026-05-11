@@ -1041,6 +1041,15 @@ def test_admin(message):
 
 if __name__ == "__main__":
     print("🚀 Bot iniciado en Railway - Sin suspensiones!")
+    
+    # Eliminar webhook si existe (para migración desde Render)
+    try:
+        bot.remove_webhook()
+        print("🔧 Webhook eliminado correctamente")
+        time.sleep(2)  # Esperar un poco
+    except Exception as e:
+        print(f"⚠️ Error eliminando webhook: {e}")
+    
     print(f"🤖 Bot: @{bot.get_me().username}")
     print("📊 Modo: Polling continuo")
     bot.infinity_polling()

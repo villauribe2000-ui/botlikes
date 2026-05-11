@@ -67,6 +67,7 @@ def start_bot():
         if retry_count < max_retries:
             wait_time = min(30 * retry_count, 300)  # Máximo 5 minutos
             log(f"⏳ Esperando {wait_time} segundos antes del siguiente intento...")
+            log("🔧 Nota: Si hay error de webhook, se resolverá automáticamente")
             time.sleep(wait_time)
     
     if retry_count >= max_retries:

@@ -169,6 +169,12 @@ def es_admin(user_id):
 def grupo_autorizado(chat_id):
     return chat_id in cargar_grupos()
 
+def bot_activo_en(chat_id):
+    config = cargar_config()
+    if not config.get("bot_activo", True):
+        return False
+    return chat_id not in config.get("grupos_apagados", [])
+
 def es_grupo(message):
     if message.from_user.id == ADMIN_ID:
         return True
@@ -270,6 +276,18 @@ def like(message):
             f"⛔ Alcanzaste tu límite diario.\n"
             f"Usaste: {usos}/{limite} veces hoy.\n"
             f"Vuelve mañana 🕐"
+        )
+        return
+
+    if not bot_activo_en(message.chat.id) and not es_admin(message.from_user.id) and not es_premium(message.from_user.id):
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("👑 Comprar VIP", url=f"https://t.me/{bot.get_me().username}?start=comprar"))
+        bot.reply_to(message,
+            "🔒 *Este servicio requiere membresía Premium.*\n\n"
+            "El bot está apagado en este grupo.\n"
+            "Contacta a @sebas992269 para adquirir premium.",
+            parse_mode="Markdown",
+            reply_markup=markup
         )
         return
 
@@ -692,6 +710,277 @@ def desactivar_api(message):
     config["api_activa"] = None
     guardar_config(config)
     bot.reply_to(message, "⚠️ APIs desactivadas. El bot no enviará likes.")
+
+@bot.message_handler(commands=["limitetodos"])
+def limite_todos(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    partes = message.text.split()
+    if len(partes) < 2:
+        bot.reply_to(message, "❌ Uso: /limitetodos <número>\nEjemplo: /limitetodos 5\n0 = sin límite")
+        return
+    
+    try:
+        limite = int(partes[1])
+        config = cargar_config()
+        config["limite_global"] = limite
+        guardar_config(config)
+        
+        if limite == 0:
+            bot.reply_to(message, "✅ Límite global eliminado. Todos los usuarios sin límite.")
+        else:
+            bot.reply_to(message, f"✅ Límite global configurado a {limite} uso(s) por día.")
+    except ValueError:
+        bot.reply_to(message, "❌ Número inválido.")
+
+@bot.message_handler(commands=["limitegrupo"])
+def limite_grupo(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    partes = message.text.split()
+    if len(partes) < 3:
+        bot.reply_to(message, "❌ Uso: /limitegrupo <ID_grupo> <límite>\nEjemplo: /limitegrupo -1001234567890 3")
+        return
+    
+    try:
+        grupo_id = partes[1]
+        limite = int(partes[2])
+        config = cargar_config()
+        
+        if "limites_por_grupo" not in config:
+            config["limites_por_grupo"] = {}
+        
+        config["limites_por_grupo"][grupo_id] = limite
+        guardar_config(config)
+        
+        if limite == 0:
+            bot.reply_to(message, f"✅ Grupo `{grupo_id}` sin límite.")
+        else:
+            bot.reply_to(message, f"✅ Grupo `{grupo_id}` configurado a {limite} uso(s) por día.")
+    except ValueError:
+        bot.reply_to(message, "❌ Número inválido.")
+
+@bot.message_handler(commands=["limitepersona"])
+def limite_persona(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    partes = message.text.split()
+    if len(partes) < 3:
+        bot.reply_to(message, "❌ Uso: /limitepersona <ID_usuario> <límite>\nEjemplo: /limitepersona 123456789 10")
+        return
+    
+    try:
+        user_id = partes[1]
+        limite = int(partes[2])
+        config = cargar_config()
+        
+        if "limites_personales" not in config:
+            config["limites_personales"] = {}
+        
+        config["limites_personales"][user_id] = limite
+        guardar_config(config)
+        
+        if limite == 0:
+            bot.reply_to(message, f"✅ Usuario `{user_id}` sin límite.")
+        else:
+            bot.reply_to(message, f"✅ Usuario `{user_id}` configurado a {limite} uso(s) por día.")
+    except ValueError:
+        bot.reply_to(message, "❌ Número inválido.")
+
+@bot.message_handler(commands=["verlimites"])
+def ver_limites(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    
+    config = cargar_config()
+    limite_global = config.get("limite_global", 1)
+    limites_grupos = config.get("limites_por_grupo", {})
+    limites_personales = config.get("limites_personales", {})
+    
+    texto = f"📊 *Configuración de Límites:*\n\n"
+    texto += f"🌐 *Global:* {limite_global} uso(s)/día\n\n"
+    
+    if limites_grupos:
+        texto += "*Por Grupo:*\n"
+        for grupo, limite in limites_grupos.items():
+            texto += f"   • `{grupo}`: {limite}\n"
+        texto += "\n"
+    
+    if limites_personales:
+        texto += "*Personales:*\n"
+        for user, limite in limites_personales.items():
+            texto += f"   • `{user}`: {limite}\n"
+    
+    if not limites_grupos and not limites_personales:
+        texto += "Sin límites específicos configurados."
+    
+    bot.reply_to(message, texto, parse_mode="Markdown")
+
+@bot.message_handler(commands=["resetusos"])
+def reset_usos(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    
+    # Limpiar archivo de usos
+    guardar_usos({})
+    bot.reply_to(message, "✅ Usos de todos los usuarios reseteados.")
+
+@bot.message_handler(commands=["apagar"])
+def apagar_grupo(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    
+    chat_id = message.chat.id
+    config = cargar_config()
+    grupos_apagados = config.get("grupos_apagados", [])
+    
+    if chat_id not in grupos_apagados:
+        grupos_apagados.append(chat_id)
+        config["grupos_apagados"] = grupos_apagados
+        guardar_config(config)
+        bot.reply_to(message, f"🔴 Bot APAGADO en este grupo.\nSolo admins y premium pueden usarlo.")
+    else:
+        bot.reply_to(message, "⚠️ El bot ya está apagado en este grupo.")
+
+@bot.message_handler(commands=["encender"])
+def encender_grupo(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    
+    chat_id = message.chat.id
+    config = cargar_config()
+    grupos_apagados = config.get("grupos_apagados", [])
+    
+    if chat_id in grupos_apagados:
+        grupos_apagados.remove(chat_id)
+        config["grupos_apagados"] = grupos_apagados
+        guardar_config(config)
+        bot.reply_to(message, f"🟢 Bot ENCENDIDO en este grupo.")
+    else:
+        bot.reply_to(message, "⚠️ El bot ya está encendido en este grupo.")
+
+@bot.message_handler(commands=["apagarTodo"])
+def apagar_todo(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    
+    config = cargar_config()
+    config["bot_activo"] = False
+    guardar_config(config)
+    bot.reply_to(message, "🔴 Bot APAGADO en TODOS los grupos.\nSolo admins y premium pueden usarlo.")
+
+@bot.message_handler(commands=["encenderTodo"])
+def encender_todo(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    
+    config = cargar_config()
+    config["bot_activo"] = True
+    config["grupos_apagados"] = []  # Limpiar grupos apagados individuales
+    guardar_config(config)
+    bot.reply_to(message, "🟢 Bot ENCENDIDO en TODOS los grupos.")
+
+@bot.message_handler(commands=["info"])
+def info_comando(message):
+    if not es_grupo(message):
+        return
+    if not grupo_autorizado(message.chat.id) and not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ Este grupo no está autorizado.\nContacta al creador: @sebas992269")
+        return
+
+    partes = message.text.split()
+    if len(partes) < 2:
+        bot.reply_to(message, "❌ Uso: /info <ID> [región]\nEjemplo: /info 106540507 us")
+        return
+
+    player_id = partes[1]
+    bot.reply_to(message, "🔍 Buscando información del jugador...")
+
+    # Buscar info del jugador usando HL Gaming API
+    info = buscar_info_jugador(player_id)
+    if info:
+        from datetime import datetime as dt
+        nombre = limpiar(info.get("AccountName", "N/A"))
+        region = info.get("AccountRegion", info.get("_region", "N/A")).upper()
+        ob = info.get("ReleaseVersion", "N/A")
+        likes = info.get("AccountLikes", "N/A")
+        exp = info.get("AccountEXP", "N/A")
+        create_ts = info.get("AccountCreateTime", 0)
+        try:
+            fecha_creacion = dt.fromtimestamp(int(create_ts)).strftime("%d/%m/%Y - %H:%M:%S")
+        except:
+            fecha_creacion = "N/A"
+
+        mensaje = (
+            f"🎮 *INFORMACIÓN DEL JUGADOR*\n\n"
+            f"👤 *Nombre:* {nombre}\n"
+            f"🆔 *ID:* `{player_id}`\n"
+            f"🌎 *Región:* {region} ({ob})\n"
+            f"❤️ *Me Gusta:* {likes}\n"
+            f"⭐ *Experiencia:* {exp} EXP\n"
+            f"📅 *Creación:* {fecha_creacion}\n\n"
+            f"Creador: @sebas992269"
+        )
+        bot.reply_to(message, mensaje, parse_mode="Markdown")
+    else:
+        bot.reply_to(message, "❌ No se pudo encontrar información del jugador.\n⚠️ Verifica que HL_USER_UID y HL_API_KEY estén configurados.")
+
+@bot.message_handler(commands=["gremio"])
+def gremio_comando(message):
+    if not es_grupo(message):
+        return
+    if not grupo_autorizado(message.chat.id) and not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ Este grupo no está autorizado.\nContacta al creador: @sebas992269")
+        return
+
+    partes = message.text.split()
+    if len(partes) < 2:
+        bot.reply_to(message, "❌ Uso: /gremio <ID> [región]\nEjemplo: /gremio 106540507 us")
+        return
+
+    bot.reply_to(message, "🔍 Buscando información del gremio...")
+    bot.reply_to(message, "⚠️ Función de gremio requiere configuración adicional de HL Gaming API.")
+
+@bot.message_handler(commands=["mascota"])
+def mascota_comando(message):
+    if not es_grupo(message):
+        return
+    if not grupo_autorizado(message.chat.id) and not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ Este grupo no está autorizado.\nContacta al creador: @sebas992269")
+        return
+
+    partes = message.text.split()
+    if len(partes) < 2:
+        bot.reply_to(message, "❌ Uso: /mascota <ID> [región]\nEjemplo: /mascota 106540507 us")
+        return
+
+    bot.reply_to(message, "🔍 Buscando información de la mascota...")
+    bot.reply_to(message, "⚠️ Función de mascota requiere configuración adicional de HL Gaming API.")
+
+@bot.message_handler(commands=["honor"])
+def honor_comando(message):
+    if not es_grupo(message):
+        return
+    if not grupo_autorizado(message.chat.id) and not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ Este grupo no está autorizado.\nContacta al creador: @sebas992269")
+        return
+
+    partes = message.text.split()
+    if len(partes) < 2:
+        bot.reply_to(message, "❌ Uso: /honor <ID> [región]\nEjemplo: /honor 106540507 us")
+        return
+
+    bot.reply_to(message, "🔍 Buscando puntuación de honor...")
+    bot.reply_to(message, "⚠️ Función de honor requiere configuración adicional de HL Gaming API.")
 
 @bot.message_handler(commands=["miid"])
 def mi_id(message):

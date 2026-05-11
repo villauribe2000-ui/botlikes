@@ -1,0 +1,29 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/webhook.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/webhook",
+      "dest": "/api/webhook.py"
+    }
+  ],
+  "env": {
+    "BOT_TOKEN": "@bot_token",
+    "ADMIN_ID": "@admin_id",
+    "LIKES_API_URL": "@likes_api_url",
+    "LIKES_API1_KEY": "@likes_api1_key",
+    "LIKES_API2_KEY": "@likes_api2_key",
+    "HL_USER_UID": "@hl_user_uid",
+    "HL_API_KEY": "@hl_api_key",
+    "HL_API_URL": "@hl_api_url",
+    "PAYPAL_LINK": "@paypal_link",
+    "PRECIO_VIP_USD": "@precio_vip_usd",
+    "PRECIO_VIP_COP": "@precio_vip_cop",
+    "LLAVE_COLOMBIA": "@llave_colombia"
+  }
+}

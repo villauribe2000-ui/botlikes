@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: freefire-bot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_ID
+        sync: false
+      - key: LIKES_API_URL
+        value: https://hubsdev.com/api/frifas/sendlikes
+      - key: LIKES_API1_KEY
+        sync: false
+      - key: LIKES_API2_KEY
+        sync: false
+      - key: HL_USER_UID
+        sync: false
+      - key: HL_API_KEY
+        sync: false
+      - key: HL_API_URL
+        value: https://proapis.hlgamingofficial.com/main/games/freefire/account/api
+      - key: PAYPAL_LINK
+        sync: false
+      - key: PRECIO_VIP_USD
+        value: "10.86"
+      - key: PRECIO_VIP_COP
+        value: "40.000"
+      - key: LLAVE_COLOMBIA
+        sync: false

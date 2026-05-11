@@ -488,6 +488,211 @@ def get_id(message):
             parse_mode="Markdown"
         )
 
+@bot.message_handler(commands=["bloquear"])
+def bloquear_cuenta(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    partes = message.text.split()
+    if len(partes) < 2:
+        bot.reply_to(message, "❌ Uso: /bloquear <ID>\nEjemplo: /bloquear 106540507")
+        return
+    
+    player_id = partes[1]
+    config = cargar_config()
+    bloqueados = config.get("ids_bloqueados", [])
+    
+    if player_id not in bloqueados:
+        bloqueados.append(player_id)
+        config["ids_bloqueados"] = bloqueados
+        guardar_config(config)
+        bot.reply_to(message, f"✅ Cuenta `{player_id}` bloqueada correctamente.")
+    else:
+        bot.reply_to(message, f"⚠️ La cuenta `{player_id}` ya está bloqueada.")
+
+@bot.message_handler(commands=["desbloquear"])
+def desbloquear_cuenta(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    partes = message.text.split()
+    if len(partes) < 2:
+        bot.reply_to(message, "❌ Uso: /desbloquear <ID>\nEjemplo: /desbloquear 106540507")
+        return
+    
+    player_id = partes[1]
+    config = cargar_config()
+    bloqueados = config.get("ids_bloqueados", [])
+    
+    if player_id in bloqueados:
+        bloqueados.remove(player_id)
+        config["ids_bloqueados"] = bloqueados
+        guardar_config(config)
+        bot.reply_to(message, f"✅ Cuenta `{player_id}` desbloqueada correctamente.")
+    else:
+        bot.reply_to(message, f"⚠️ La cuenta `{player_id}` no está bloqueada.")
+
+@bot.message_handler(commands=["listabloqueados"])
+def lista_bloqueados(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    config = cargar_config()
+    bloqueados = config.get("ids_bloqueados", [])
+    
+    if not bloqueados:
+        bot.reply_to(message, "📋 No hay cuentas bloqueadas.")
+        return
+    
+    texto = "🚫 *Cuentas bloqueadas:*\n\n"
+    for i, cuenta in enumerate(bloqueados, 1):
+        texto += f"{i}. `{cuenta}`\n"
+    bot.reply_to(message, texto, parse_mode="Markdown")
+
+@bot.message_handler(commands=["addpremium"])
+def add_premium(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    partes = message.text.split()
+    if len(partes) < 2:
+        bot.reply_to(message, "❌ Uso: /addpremium <ID> [días]\nEjemplo: /addpremium 123456789 30")
+        return
+    
+    try:
+        user_id = partes[1]
+        dias = int(partes[2]) if len(partes) > 2 else 30
+        
+        from datetime import timedelta
+        fecha_expira = (datetime.now() + timedelta(days=dias)).strftime("%Y-%m-%d")
+        
+        config = cargar_config()
+        premium = config.get("usuarios_premium", {})
+        premium[user_id] = fecha_expira
+        config["usuarios_premium"] = premium
+        guardar_config(config)
+        
+        bot.reply_to(message, f"✅ Usuario `{user_id}` agregado como premium por {dias} días.\nExpira: {fecha_expira}")
+    except ValueError:
+        bot.reply_to(message, "❌ Número de días inválido.")
+
+@bot.message_handler(commands=["delpremium"])
+def del_premium(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    partes = message.text.split()
+    if len(partes) < 2:
+        bot.reply_to(message, "❌ Uso: /delpremium <ID>\nEjemplo: /delpremium 123456789")
+        return
+    
+    user_id = partes[1]
+    config = cargar_config()
+    premium = config.get("usuarios_premium", {})
+    
+    if user_id in premium:
+        del premium[user_id]
+        config["usuarios_premium"] = premium
+        guardar_config(config)
+        bot.reply_to(message, f"✅ Usuario `{user_id}` eliminado de premium.")
+    else:
+        bot.reply_to(message, f"⚠️ El usuario `{user_id}` no es premium.")
+
+@bot.message_handler(commands=["listapremium"])
+def lista_premium(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    config = cargar_config()
+    premium = config.get("usuarios_premium", {})
+    
+    if not premium:
+        bot.reply_to(message, "📋 No hay usuarios premium.")
+        return
+    
+    texto = "👑 *Usuarios Premium:*\n\n"
+    for i, (user_id, fecha) in enumerate(premium.items(), 1):
+        try:
+            expira = datetime.strptime(fecha, "%Y-%m-%d")
+            dias_restantes = (expira - datetime.now()).days
+            if dias_restantes > 0:
+                texto += f"{i}. `{user_id}` - {dias_restantes} días\n"
+            else:
+                texto += f"{i}. `{user_id}` - ⚠️ Expirado\n"
+        except:
+            texto += f"{i}. `{user_id}` - Error en fecha\n"
+    
+    bot.reply_to(message, texto, parse_mode="Markdown")
+
+@bot.message_handler(commands=["mantenimiento"])
+def activar_mantenimiento(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    config = cargar_config()
+    config["mantenimiento"] = True
+    guardar_config(config)
+    bot.reply_to(message, "🔧 Modo mantenimiento ACTIVADO.\nSolo admins y premium pueden usar el bot.")
+
+@bot.message_handler(commands=["sinmantenimiento"])
+def desactivar_mantenimiento(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    config = cargar_config()
+    config["mantenimiento"] = False
+    guardar_config(config)
+    bot.reply_to(message, "✅ Modo mantenimiento DESACTIVADO.\nTodos los usuarios pueden usar el bot.")
+
+@bot.message_handler(commands=["verapi"])
+def ver_api(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    config = cargar_config()
+    api_activa = config.get("api_activa", "api1")
+    usos = config.get("usos_api", {"api1": 0, "api2": 0, "fecha": ""})
+    
+    texto = (
+        f"🔧 *Estado de APIs:*\n\n"
+        f"📡 *API Activa:* {api_activa.upper()}\n"
+        f"📊 *Usos hoy:*\n"
+        f"   • API1: {usos.get('api1', 0)}\n"
+        f"   • API2: {usos.get('api2', 0)}\n"
+        f"📅 *Fecha:* {usos.get('fecha', 'N/A')}"
+    )
+    bot.reply_to(message, texto, parse_mode="Markdown")
+
+@bot.message_handler(commands=["activarapi1"])
+def activar_api1(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    config = cargar_config()
+    config["api_activa"] = "api1"
+    guardar_config(config)
+    bot.reply_to(message, "✅ API1 activada (límite 30 usos).")
+
+@bot.message_handler(commands=["activarapi2"])
+def activar_api2(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    config = cargar_config()
+    config["api_activa"] = "api2"
+    guardar_config(config)
+    bot.reply_to(message, "✅ API2 activada (límite 200 usos).")
+
+@bot.message_handler(commands=["desactivarapi"])
+def desactivar_api(message):
+    if not es_admin(message.from_user.id):
+        bot.reply_to(message, "⛔ No tienes permiso.")
+        return
+    config = cargar_config()
+    config["api_activa"] = None
+    guardar_config(config)
+    bot.reply_to(message, "⚠️ APIs desactivadas. El bot no enviará likes.")
+
 @bot.message_handler(commands=["miid"])
 def mi_id(message):
     """Comando para que cualquier usuario vea su ID"""
